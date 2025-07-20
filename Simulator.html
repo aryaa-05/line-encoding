@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Line Encoding Simulator</title>
+    <style>
+      body {
+        background: #1e1e1e;
+        color: #fff;
+        font-family: "Segoe UI", sans-serif;
+        text-align: center;
+        padding: 20px;
+      }
+
+      h1 {
+        color: #00c3ff;
+        margin-bottom: 20px;
+      }
+
+      .controls {
+        margin-bottom: 20px;
+      }
+
+      input,
+      select,
+      button {
+        padding: 10px;
+        margin: 5px;
+        font-size: 16px;
+        border: none;
+        border-radius: 5px;
+      }
+
+      input,
+      select {
+        width: 200px;
+      }
+
+      button {
+        background-color: #00c3ff;
+        color: white;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: #009fc2;
+      }
+
+      canvas {
+        background-color: #fff;
+        border: 1px solid #555;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Line Encoding Simulator</h1>
+    <div class="controls">
+      <input
+        type="text"
+        id="binaryInput"
+        placeholder="Enter binary"
+        value="1011001"
+      />
+      <select id="encodingType">
+        <option>Unipolar NRZ</option>
+        <option>Unipolar RZ</option>
+        <option>Polar NRZ-Level</option>
+        <option>Polar NRZ-Invert</option>
+        <option>Polar RZ</option>
+        <option>Bipolar (Pseudoternary)</option>
+        <option>Manchester</option>
+        <option>Differential Manchester</option>
+      </select>
+
+      <button onclick="drawEncoding()">Simulate</button>
+    </div>
+
+    <canvas id="canvas" width="1000" height="300"></canvas>
+
+    <script>
+      function drawEncoding() {
+        const binary = document.getElementById("binaryInput").value.trim();
+        const type = document.getElementById("encodingType").value;
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const midY = canvas.height / 2;
+        const high = midY - 40;
+        const low = midY + 40;
+        const bitWidth = 60;
+        let x = 20;
+        let lastPolarity = 1; // for bipolar or NRZ-Invert
+        let prevLevel = high; // for Differential Manchester
+
+        // Draw baseline
+        ctx.beginPath();
+        ctx.strokeStyle = "#ccc";
+        ctx.moveTo(0, midY);
+        ctx.lineTo(canvas.width, midY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.strokeStyle = "#00c3ff";
+        ctx.lineWidth = 2;
+
+        for (let i = 0; i < binary.length; i++) {
+          const bit = binary[i];
+
+          if (type === "Unipolar NRZ") {
+            const y = bit === "1" ? high : midY;
+            ctx.lineTo(x, y);
+            x += bitWidth;
+            ctx.lineTo(x, y);
+          } else if (type === "Unipolar RZ") {
+            const y = bit === "1" ? high : midY;
+            ctx.lineTo(x, y);
+            x += bitWidth / 2;
+            ctx.lineTo(x, y);
+            ctx.lineTo(x, midY);
+            x += bitWidth / 2;
+            ctx.lineTo(x, midY);
+          } else if (type === "Polar NRZ-Level") {
+            const y = bit === "1" ? high : low;
+            ctx.lineTo(x, y);
+            x += bitWidth;
+            ctx.lineTo(x, y);
+          } else if (type === "Polar NRZ-Invert") {
+            if (bit === "1") {
+              lastPolarity *= -1;
+              const y = lastPolarity === 1 ? high : low;
+              ctx.lineTo(x, y);
+              x += bitWidth;
+              ctx.lineTo(x, y);
+              ctx.currentY = y;
+            } else {
+              ctx.lineTo(x, ctx.currentY || midY);
+              x += bitWidth;
+              ctx.lineTo(x, ctx.currentY || midY);
+            }
+          } else if (type === "Polar RZ") {
+            const y = bit === "1" ? high : low;
+            ctx.lineTo(x, y);
+            x += bitWidth / 2;
+            ctx.lineTo(x, y);
+            ctx.lineTo(x, midY);
+            x += bitWidth / 2;
+            ctx.lineTo(x, midY);
+          } else if (type === "Bipolar (Pseudoternary)") {
+            if (bit === "0") {
+              lastPolarity *= -1;
+              const y = lastPolarity === 1 ? high : low;
+              ctx.lineTo(x, y);
+              x += bitWidth;
+              ctx.lineTo(x, y);
+            } else {
+              ctx.lineTo(x, midY);
+              x += bitWidth;
+              ctx.lineTo(x, midY);
+            }
+          } else if (type === "Manchester") {
+            const midX = x + bitWidth / 2;
+            const y1 = bit === "1" ? low : high;
+            const y2 = bit === "1" ? high : low;
+            ctx.lineTo(x, y1);
+            ctx.lineTo(midX, y1);
+            ctx.lineTo(midX, y2);
+            ctx.lineTo(x + bitWidth, y2);
+            x += bitWidth;
+          } else if (type === "Differential Manchester") {
+            const midX = x + bitWidth / 2;
+            const transitionAtStart = bit === "0";
+
+            let currentLevel = prevLevel;
+
+            if (transitionAtStart) {
+              currentLevel = prevLevel === high ? low : high;
+              ctx.lineTo(x, prevLevel); // go to previous
+              ctx.lineTo(x, currentLevel); // transition at start
+            } else {
+              ctx.lineTo(x, prevLevel); // no transition at start
+            }
+
+            ctx.lineTo(midX, currentLevel); // hold till middle
+
+            // Mid-bit transition (always)
+            const nextLevel = currentLevel === high ? low : high;
+            ctx.lineTo(midX, nextLevel);
+            ctx.lineTo(x + bitWidth, nextLevel);
+
+            prevLevel = nextLevel; // save for next bit
+            x += bitWidth;
+          }
+        }
+
+        ctx.stroke();
+      }
+    </script>
+  </body>
+</html>
